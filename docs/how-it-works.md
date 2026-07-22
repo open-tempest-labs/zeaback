@@ -307,6 +307,118 @@ self-checking integrity proof.
 
 ---
 
+## Try it yourself
+
+Everything above is observable in about two minutes. Build the binary, then follow
+along — the numbers below are from a real run.
+
+```sh
+make build          # produces ./zeaback (DuckDB included, for `query`)
+```
+
+**Set up a small project** with a config, some notes, and a ~1.8 MB log file:
+
+```sh
+mkdir -p project/logs
+printf 'release = 1.0\n' > project/app.conf
+printf 'meeting notes\n- ship it\n' > project/notes.txt
+seq 1 28000 | awk '{printf "2026-07-21T10:%02d:%02d INFO req id=%d status=200 path=/api/items\n",$1%60,($1*7)%60,$1}' > project/logs/app.log
+```
+
+**1 · Initialize a repository and take the first backup:**
+
+```console
+$ ./zeaback init --path ./repo --name demo
+Initialized repository "demo" (id 912ef4e7…)
+Set as default repository.
+
+$ ./zeaback backup --event baseline --tag team=platform ./project
+Created snapshot 20260722T013759-6edccf7b8d76
+  files:    3  dirs: 2  symlinks: 0
+  data:     1.7 MiB scanned
+  new:      10 chunks (89.2 KiB written)   ← the log compressed 1.8 MB → ~89 KB
+  reused:   0 chunks (deduplicated)
+```
+
+**2 · Change one config line, add a file, back up again** — watch the incremental:
+
+```console
+$ printf 'release = 2.0\n' > project/app.conf
+$ printf 'draft\n'         > project/notes-2.txt
+$ ./zeaback backup --event post-change ./project
+Created snapshot 20260722T013759-be22bd34e397
+  parent:   20260722T013759-6edccf7b8d76
+  files:    4  dirs: 2  symlinks: 0
+  new:      2 chunks (32 B written)         ← only the genuinely new bytes
+  reused:   9 chunks (deduplicated)         ← the 1.8 MB log wasn't re-read or re-stored
+```
+
+That's the whole thesis in one line: the second backup wrote **32 bytes**.
+
+**3 · Explore.** List snapshots, browse a tree, and ask the catalog questions in SQL:
+
+```console
+$ ./zeaback snapshots
+ID                            TIME                 EVENT        SOURCES    TAGS
+20260722T013759-6edccf7b8d76  2026-07-21 21:37:59  baseline     ./project  team=platform
+20260722T013759-be22bd34e397  2026-07-21 21:37:59  post-change  ./project  -
+
+$ ./zeaback ls latest
+snapshot 20260722T013759-be22bd34e397  (2026-07-21 21:37:59)
+d  -rwxr-xr-x  0 B      project
+-  -rw-r--r--  14 B     project/app.conf
+-  -rw-r--r--  1.7 MiB  project/logs/app.log
+...
+
+$ ./zeaback query "SELECT count(*) AS chunks, sum(length) AS logical, sum(comp_length) AS stored FROM chunks"
+chunks  logical  stored
+12      1808952  91324                        ← ~1.8 MB of content, ~91 KB on disk
+```
+
+**4 · Time-travel.** Restore a single file as it was at a named event, and as it is now:
+
+```console
+$ ./zeaback restore --event baseline --path project/app.conf ./at-baseline
+$ ./zeaback restore                  --path project/app.conf ./at-latest
+$ cat ./at-baseline/project/app.conf   # release = 1.0
+$ cat ./at-latest/project/app.conf     # release = 2.0
+```
+
+You can restore by `--event LABEL`, by `--at "2026-07-21 10:00:00"` (point in time),
+or by snapshot id — at file, directory, or whole-tree granularity.
+
+**5 · The full lifecycle: rotate, forget, compact, verify.** Replace the log
+entirely, back up, drop the now-stale snapshots, and reclaim their space:
+
+```console
+$ seq 28001 56000 | awk '{...}' > project/logs/app.log     # brand-new log content
+$ ./zeaback backup --event rotated ./project
+  new: 7 chunks (87.7 KiB written)   reused: 3 chunks
+
+# forget the two pre-rotation snapshots, then garbage-collect
+$ ./zeaback snapshots | awk 'NR>1{print $1}' | head -2 | xargs -n1 ./zeaback forget
+$ ./zeaback compact
+Compaction complete.
+  packs:    3 -> 3  (deleted 0, rewritten 1)
+  chunks:   10 live, 9 dead, 1 relocated
+  reclaimed: 89.1 KiB                 ← the old log's chunks, now unreferenced
+
+$ ./zeaback verify --deep
+OK (deep (blobs hash-checked)): 1 snapshots, 4 files, 10 chunk references verified
+```
+
+**What just happened, mapped back to the design:** content-defined chunking + the
+live-set check made the second backup 32 bytes (dedup); DEFLATE turned 1.8 MB into
+~91 KB (packing); `query` ran DuckDB straight over the Parquet catalog (the
+metadata plane); `restore --event` was a temporal query resolving to the right
+snapshot (time-travel); `forget` + `compact` computed the live set, found the old
+log's chunks unreferenced, rewrote the one low-liveness pack, and reclaimed the
+space (garbage collection); and `verify --deep` re-hashed every stored blob
+against its content address (integrity).
+
+To point any of this at the cloud, `init` the repo on a mounted gateway path
+(`--path /mnt/volumez/backups`) — nothing else changes.
+
 ## What falls out of the design
 
 - **Deduplication** across files, snapshots, and hosts — a consequence of naming
