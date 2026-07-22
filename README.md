@@ -83,7 +83,11 @@ zeaback
     └── verify          # integrity checking
 ```
 
-See [DESIGN.md](DESIGN.md) for the full design, including the AI/MCP roadmap.
+For a narrative deep-dive into how everything actually works — content-defined
+chunking, content addressing, packing, the object-storage mapping, the catalog,
+and the backup/restore/compaction flows — see
+**[docs/how-it-works.md](docs/how-it-works.md)**. For the terser design
+reference (including the AI/MCP roadmap) see [DESIGN.md](DESIGN.md).
 
 ## Cloud and external storage (volumez, rclone, s3fs, NFS, ...)
 
