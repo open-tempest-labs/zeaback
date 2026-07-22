@@ -22,7 +22,7 @@ var (
 
 var lsCmd = &cobra.Command{
 	Use:   "ls [SNAPSHOT] [PATH]",
-	Short: "Browse the file tree of a zeasnap (time-travel exploration)",
+	Short: "Browse the file tree of a znapshot (time-travel exploration)",
 	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()

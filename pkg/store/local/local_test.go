@@ -19,7 +19,7 @@ func TestLocalRoundTrip(t *testing.T) {
 	}
 	defer s.Close()
 
-	want := []byte("hello zeasnap payload")
+	want := []byte("hello znapshot payload")
 	if err := s.Put(ctx, "data/pack-01.pack", bytes.NewReader(want)); err != nil {
 		t.Fatalf("put: %v", err)
 	}

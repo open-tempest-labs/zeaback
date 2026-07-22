@@ -1,6 +1,6 @@
 // Package snapshot implements the zeaback backup engine: it walks source paths,
 // deduplicates content against the repository via content-defined chunking, and
-// records an immutable zeasnap (node tree + new chunk/pack manifests + snapshot
+// records an immutable znapshot (node tree + new chunk/pack manifests + snapshot
 // record) in the catalog.
 package snapshot
 
@@ -58,7 +58,7 @@ func contentHash(hashes []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// Create runs a backup, writing a new zeasnap to the repository. The parent is
+// Create runs a backup, writing a new znapshot to the repository. The parent is
 // the most recent existing snapshot; unchanged files (same size and mtime) are
 // carried forward without re-reading, and unchanged chunks are deduplicated.
 func Create(ctx context.Context, r *repo.Repository, opts Options) (catalog.Snapshot, Stats, error) {

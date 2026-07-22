@@ -128,11 +128,11 @@ what turns chunks dead in the first place.
 - **Encryption** — per-blob, using the reserved pack header flags.
 - **AI / MCP (Phase 2)** — an MCP server exposing `list_snapshots`, `browse`
   (time-travel), `semantic_restore` (intent → temporal/tag/content-type query,
-  later augmented with embeddings), and `auto_backup` (take a safety zeasnap of
+  later augmented with embeddings), and `auto_backup` (take a safety znapshot of
   affected paths before any destructive tool runs). The catalog already carries
   `event_label`, `tags`, `content_type`, and a reserved `embedding` column so these
   are additive queries, not a schema migration.
-- **Iceberg synergy** — optionally map zeasnaps onto Iceberg table snapshots via
+- **Iceberg synergy** — optionally map znapshots onto Iceberg table snapshots via
   `zeaos`/`zeaberg` for table-format-native time-travel.
 
 ## Known Phase-1 limitations

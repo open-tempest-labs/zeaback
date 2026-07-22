@@ -20,7 +20,7 @@ var (
 var restoreCmd = &cobra.Command{
 	Use:   "restore DEST",
 	Short: "Restore a file, directory, or whole tree to DEST",
-	Long: `Restore reconstructs content from a zeasnap into the destination directory.
+	Long: `Restore reconstructs content from a znapshot into the destination directory.
 
 Select the snapshot with --snapshot ID, --at TIME (point-in-time), or --event
 LABEL (optionally with --before TIME). Restrict to a subtree or single file with

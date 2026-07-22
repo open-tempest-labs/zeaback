@@ -11,7 +11,7 @@ import (
 
 var forgetCmd = &cobra.Command{
 	Use:   "forget SNAPSHOT",
-	Short: "Make a zeasnap unreachable (its exclusive chunks are reclaimed by compact)",
+	Short: "Make a znapshot unreachable (its exclusive chunks are reclaimed by compact)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()

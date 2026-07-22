@@ -29,7 +29,7 @@ const (
 	NodeSymlink NodeType = "symlink"
 )
 
-// Snapshot is a zeasnap record: a point-in-time, filesystem-independent backup.
+// Snapshot is a znapshot record: a point-in-time, filesystem-independent backup.
 type Snapshot struct {
 	ID          string
 	Timestamp   time.Time

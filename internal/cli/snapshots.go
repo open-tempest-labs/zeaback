@@ -13,7 +13,7 @@ import (
 var snapshotsCmd = &cobra.Command{
 	Use:     "snapshots",
 	Aliases: []string{"list", "ls-snapshots"},
-	Short:   "List the zeasnaps in the repository",
+	Short:   "List the znapshots in the repository",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 		r, err := openRepo(ctx)

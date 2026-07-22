@@ -17,7 +17,7 @@ var (
 
 var backupCmd = &cobra.Command{
 	Use:   "backup PATH [PATH...]",
-	Short: "Create an incremental zeasnap of the given paths",
+	Short: "Create an incremental znapshot of the given paths",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()

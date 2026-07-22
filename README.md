@@ -2,8 +2,8 @@
 
 **Incremental, deduplicating backup for the Zea ecosystem — with a queryable, time-travelable metadata catalog.**
 
-zeaback backs up files, directories, and whole trees into **zeasnaps**:
-point-in-time, filesystem-independent snapshots. A zeasnap is not tied to any
+zeaback backs up files, directories, and whole trees into **znapshots**:
+point-in-time, filesystem-independent snapshots. A znapshot is not tied to any
 particular disk — it is a combination of opaque, content-addressed **data blobs**
 and a rich **columnar metadata catalog**. That split is the whole idea:
 
@@ -27,8 +27,8 @@ Your files aren't tabular — but the *questions you ask of a backup* are:
 make build                      # builds ./zeaback with DuckDB (tags duckdb_arrow)
 
 ./zeaback init --path ~/backups/main        # create a local repository
-./zeaback backup --event nightly ~/projects # create a zeasnap
-./zeaback snapshots                         # list zeasnaps
+./zeaback backup --event nightly ~/projects # create a znapshot
+./zeaback snapshots                         # list znapshots
 ./zeaback ls latest ~/projects              # browse a snapshot tree
 
 # restore a whole tree, a subtree, or a single file
@@ -51,8 +51,8 @@ make build                      # builds ./zeaback with DuckDB (tags duckdb_arro
 | Command | Purpose |
 |---|---|
 | `init` | Create a repository at a local path (or a mounted gateway) and register it |
-| `backup PATH...` | Create an incremental zeasnap; `--event`, `--tag k=v` |
-| `snapshots` | List zeasnaps |
+| `backup PATH...` | Create an incremental znapshot; `--event`, `--tag k=v` |
+| `snapshots` | List znapshots |
 | `ls [SNAP] [PATH]` | Browse a snapshot's tree; `--at`, `--event` |
 | `restore DEST` | Restore file/subtree/tree; `--snapshot`, `--at`, `--event`, `--before`, `--path` |
 | `forget SNAPSHOT` | Make a snapshot unreachable |

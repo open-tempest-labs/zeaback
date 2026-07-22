@@ -1,4 +1,4 @@
-// Package restore reconstructs files, directories, or whole trees from a zeasnap
+// Package restore reconstructs files, directories, or whole trees from a znapshot
 // to a destination on disk. The target snapshot is chosen by id, by point in
 // time, or by named event via a catalog.Selector.
 package restore

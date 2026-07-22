@@ -7,7 +7,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "zeaback",
 	Short: "zeaback - incremental backup system for the Zea ecosystem",
-	Long: `zeaback is an incremental backup system built on zeasnaps: point-in-time,
+	Long: `zeaback is an incremental backup system built on znapshots: point-in-time,
 filesystem-independent snapshots that combine deduplicated content-addressed data
 blobs with a queryable columnar metadata catalog.
 

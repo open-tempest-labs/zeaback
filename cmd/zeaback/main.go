@@ -1,6 +1,6 @@
 // Command zeaback is the CLI entrypoint for the zeaback backup system.
 //
-// zeaback creates zeasnaps: point-in-time, filesystem-independent snapshots that
+// zeaback creates znapshots: point-in-time, filesystem-independent snapshots that
 // combine deduplicated content-addressed data blobs with a queryable columnar
 // metadata catalog, enabling incremental backups, auto-compaction, and
 // file/directory/whole-tree restore to a point in time or a named event.
