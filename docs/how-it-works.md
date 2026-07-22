@@ -15,13 +15,20 @@ write-once blob store. Knowledge wants a rich, queryable, columnar catalog.
 zeaback keeps them in **two planes** and lets each be good at its own job:
 
 ```
-        ┌──────────────────────── znapshot ────────────────────────┐
-        │                                                          │
-   DATA PLANE (opaque)                       METADATA PLANE (queryable)
-   content-addressed, deduplicated,          Parquet manifests, queried
-   compressed blobs in pack files            by DuckDB — the "knowledge"
-        │                                                          │
-        └── your files, as bytes ──┘         └── what/where/when, as rows ┘
+  A znapshot = one point-in-time backup, reconstructed from two planes:
+
+    METADATA PLANE   (queryable "knowledge")
+      • Parquet manifests, read by DuckDB
+      • the recipe: which files exist, and which chunk hashes compose each
+      • what / where / when — as rows
+             │
+             │  each file entry references chunk hashes by content …
+             ▼
+    DATA PLANE   (opaque bytes)
+      • content-addressed, deduplicated, compressed blobs in pack files
+      • the chunk bytes themselves — no names, no structure
+
+  Backup writes both planes; restore reads the recipe, then fetches the bytes.
 ```
 
 The rest of this document walks through both planes and then shows how a backup,
