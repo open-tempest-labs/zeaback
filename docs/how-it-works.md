@@ -16,11 +16,11 @@ zeaback keeps them in **two planes** and lets each be good at its own job:
 
 ```
         ┌──────────────────────── znapshot ────────────────────────┐
-        │                                                           │
+        │                                                          │
    DATA PLANE (opaque)                       METADATA PLANE (queryable)
    content-addressed, deduplicated,          Parquet manifests, queried
    compressed blobs in pack files            by DuckDB — the "knowledge"
-        │                                                           │
+        │                                                          │
         └── your files, as bytes ──┘         └── what/where/when, as rows ┘
 ```
 
@@ -98,14 +98,14 @@ A pack is dead simple on disk:
 
 ```
 data/<random-pack-id>.pack
-┌────────────────────────────────────────────────────────────────┐
-│ header: "ZBK1" + version(1) + flags(1) + reserved(2)  (8 bytes) │
-├────────────────────────────────────────────────────────────────┤
+┌──────────────────────────────────────────────────────────────────┐
+│ header: "ZBK1" + version(1) + flags(1) + reserved(2)  (8 bytes)  │
+├──────────────────────────────────────────────────────────────────┤
 │ deflate(chunk A)                                                 │
 │ deflate(chunk B)                                                 │
 │ deflate(chunk C)                                                 │
 │ ...                                                              │
-└────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 The catalog remembers, for each chunk, *which pack it's in and where*:
