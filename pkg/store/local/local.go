@@ -6,12 +6,14 @@ package local
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/open-tempest-labs/zeaback/pkg/store"
 )
@@ -36,6 +38,18 @@ func New(dir string) (*Store, error) {
 	return &Store{root: abs}, nil
 }
 
+// isUnsupported reports whether err indicates the filesystem does not implement
+// the attempted operation. FUSE mounts and object-store gateways (e.g. volumez)
+// frequently lack fsync and return ENOTSUP/EOPNOTSUPP/ENOSYS — and some return
+// EINVAL for fsync on their backing objects. fsync is only a durability hint, so
+// on such backends we tolerate its absence rather than failing the write.
+func isUnsupported(err error) bool {
+	return errors.Is(err, syscall.ENOTSUP) ||
+		errors.Is(err, syscall.EOPNOTSUPP) ||
+		errors.Is(err, syscall.ENOSYS) ||
+		errors.Is(err, syscall.EINVAL)
+}
+
 // path maps a forward-slash key to an absolute filesystem path.
 func (s *Store) path(key string) string {
 	return filepath.Join(s.root, filepath.FromSlash(key))
@@ -56,7 +70,7 @@ func (s *Store) Put(ctx context.Context, key string, r io.Reader) error {
 		os.Remove(tmpName)
 		return fmt.Errorf("local: write %q: %w", key, err)
 	}
-	if err := tmp.Sync(); err != nil {
+	if err := tmp.Sync(); err != nil && !isUnsupported(err) {
 		tmp.Close()
 		os.Remove(tmpName)
 		return fmt.Errorf("local: sync %q: %w", key, err)
