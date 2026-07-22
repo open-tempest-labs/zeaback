@@ -31,7 +31,7 @@ func TestSnapshotRoundTrip(t *testing.T) {
 		EventLabel:  "pre-deploy",
 		Tags:        map[string]string{"host": "laptop", "job": "nightly"},
 		Host:        "laptop",
-		SourcePaths: []string{"/home/me/projects"},
+		SourcePaths: []string{"/src/projects"},
 		Annotations: map[string]string{},
 	}
 	if err := c.WriteSnapshotRecord(ctx, snap); err != nil {
@@ -176,14 +176,16 @@ func TestNodeManifestLargeVaried(t *testing.T) {
 }
 
 func TestStoredPath(t *testing.T) {
-	snap := catalog.Snapshot{SourcePaths: []string{"/Users/lmccay/Documents"}}
+	// StoredPath is pure string translation (no filesystem access); the paths
+	// below are synthetic and machine-independent.
+	snap := catalog.Snapshot{SourcePaths: []string{"/src/root/Documents"}}
 	cases := map[string]string{
-		"/Users/lmccay/Documents":           "Documents",          // source root
-		"/Users/lmccay/Documents/Personal":  "Documents/Personal", // under root
-		"/Users/lmccay/Documents/Personal/": "Documents/Personal", // trailing slash
-		"Documents/Personal":                "Documents/Personal", // already stored form
-		"/etc/hosts":                        "etc/hosts",          // outside any source
-		"":                                  "",
+		"/src/root/Documents":           "Documents",          // source root
+		"/src/root/Documents/Personal":  "Documents/Personal", // under root
+		"/src/root/Documents/Personal/": "Documents/Personal", // trailing slash
+		"Documents/Personal":            "Documents/Personal", // already stored form
+		"/somewhere/else":               "somewhere/else",     // outside any source
+		"":                              "",
 	}
 	for in, want := range cases {
 		if got := catalog.StoredPath(snap, in); got != want {
