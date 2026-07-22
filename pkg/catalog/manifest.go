@@ -40,8 +40,16 @@ var (
 		strField("snapshot_id"), strField("path"), strField("type"),
 		u32Field("mode"), u32Field("uid"), u32Field("gid"),
 		i64Field("size"), i64Field("mtime"), strField("symlink_target"),
-		strField("content_hash"), strField("chunks"),
+		strField("content_hash"),
 		strField("content_type"), strField("embedding"),
+	}, nil)
+
+	// nodeChunkSchema normalizes a file's ordered chunk list into one row per
+	// chunk. Embedding the whole list as a single JSON cell breaks arrow-go's
+	// Parquet codec once a file is large enough (multi-MB cell); a row-per-chunk
+	// layout keeps every value tiny and scales to files of any size.
+	nodeChunkSchema = arrow.NewSchema([]arrow.Field{
+		strField("path"), i64Field("seq"), strField("hash"),
 	}, nil)
 
 	chunkSchema = arrow.NewSchema([]arrow.Field{
@@ -102,7 +110,20 @@ func (c *Catalog) writeParquet(ctx context.Context, key string, schema *arrow.Sc
 	defer tbl.Release()
 
 	var buf bytes.Buffer
-	wrProps := parquet.NewWriterProperties(parquet.WithCompression(compress.Codecs.Snappy))
+	// Dictionary encoding is disabled deliberately. Our columns are high
+	// cardinality (content hashes, paths, per-file chunk lists), so dictionaries
+	// save little, and arrow-go's dictionary decode path fails ("dict eof
+	// exception") on certain real-world manifests when a column's dictionary
+	// overflows to plain encoding mid-chunk. Plain + Snappy is robust and still
+	// compresses the low-cardinality columns well.
+	// Dictionary encoding is disabled: our columns are high cardinality (hashes,
+	// paths), so dictionaries save little, and disabling them keeps clear of
+	// arrow-go's dictionary decode edge cases. Plain + Snappy compresses the
+	// low-cardinality columns well.
+	wrProps := parquet.NewWriterProperties(
+		parquet.WithCompression(compress.Codecs.Snappy),
+		parquet.WithDictionaryDefault(false),
+	)
 	arrProps := pqarrow.NewArrowWriterProperties(pqarrow.WithStoreSchema())
 	if err := pqarrow.WriteTable(tbl, &buf, rowGroupSize, wrProps, arrProps); err != nil {
 		return fmt.Errorf("catalog: write parquet %s: %w", key, err)
@@ -199,7 +220,7 @@ func (c *Catalog) WriteSnapshotRecord(ctx context.Context, s Snapshot) error {
 
 // WriteNodes writes the node (file-tree) manifest for a snapshot.
 func (c *Catalog) WriteNodes(ctx context.Context, snapID string, nodes []Node) error {
-	return c.writeParquet(ctx, nodesKey(snapID), nodeSchema, func(b *array.RecordBuilder) {
+	if err := c.writeParquet(ctx, nodesKey(snapID), nodeSchema, func(b *array.RecordBuilder) {
 		for _, n := range nodes {
 			str(b, 0, snapID)
 			str(b, 1, n.Path)
@@ -211,9 +232,21 @@ func (c *Catalog) WriteNodes(ctx context.Context, snapID string, nodes []Node) e
 			i64(b, 7, n.MTime.UnixNano())
 			str(b, 8, n.SymlinkTarget)
 			str(b, 9, n.ContentHash)
-			str(b, 10, encJSON(n.Chunks))
-			str(b, 11, n.ContentType)
-			str(b, 12, n.Embedding)
+			str(b, 10, n.ContentType)
+			str(b, 11, n.Embedding)
+		}
+	}); err != nil {
+		return err
+	}
+	// Chunk lists are stored normalized (one row per chunk) so no single Parquet
+	// cell is ever large, regardless of file size.
+	return c.writeParquet(ctx, nodeChunksKey(snapID), nodeChunkSchema, func(b *array.RecordBuilder) {
+		for _, n := range nodes {
+			for seq, h := range n.Chunks {
+				str(b, 0, n.Path)
+				i64(b, 1, int64(seq))
+				str(b, 2, h)
+			}
 		}
 	})
 }
@@ -288,6 +321,26 @@ func firstI64(tbl arrow.Table, name string) int64 {
 	return 0
 }
 
+// nColStr/nColU32/nColI64 read a full column by name, returning nil if absent.
+func nColStr(tbl arrow.Table, name string) []string {
+	if i := colIndex(tbl, name); i >= 0 {
+		return colStr(tbl, i)
+	}
+	return nil
+}
+func nColU32(tbl arrow.Table, name string) []uint32 {
+	if i := colIndex(tbl, name); i >= 0 {
+		return colU32(tbl, i)
+	}
+	return nil
+}
+func nColI64(tbl arrow.Table, name string) []int64 {
+	if i := colIndex(tbl, name); i >= 0 {
+		return colI64(tbl, i)
+	}
+	return nil
+}
+
 func (c *Catalog) readSnapshot(ctx context.Context, key string) (Snapshot, error) {
 	tbl, err := c.readTable(ctx, key)
 	if err != nil {
@@ -333,44 +386,102 @@ func (c *Catalog) LoadSnapshots(ctx context.Context) ([]Snapshot, error) {
 	return snaps, nil
 }
 
-// LoadNodes reads the file tree of a snapshot.
+// LoadNodes reads the file tree of a snapshot, reattaching each file's ordered
+// chunk list from the normalized node-chunks manifest.
 func (c *Catalog) LoadNodes(ctx context.Context, snapID string) ([]Node, error) {
 	tbl, err := c.readTable(ctx, nodesKey(snapID))
 	if err != nil {
 		return nil, err
 	}
 	defer tbl.Release()
-	paths := colStr(tbl, 1)
-	types := colStr(tbl, 2)
-	modes := colU32(tbl, 3)
-	uids := colU32(tbl, 4)
-	gids := colU32(tbl, 5)
-	sizes := colI64(tbl, 6)
-	mtimes := colI64(tbl, 7)
-	links := colStr(tbl, 8)
-	hashes := colStr(tbl, 9)
-	chunks := colStr(tbl, 10)
-	ctypes := colStr(tbl, 11)
-	embs := colStr(tbl, 12)
+	paths := nColStr(tbl, "path")
+	types := nColStr(tbl, "type")
+	modes := nColU32(tbl, "mode")
+	uids := nColU32(tbl, "uid")
+	gids := nColU32(tbl, "gid")
+	sizes := nColI64(tbl, "size")
+	mtimes := nColI64(tbl, "mtime")
+	links := nColStr(tbl, "symlink_target")
+	hashes := nColStr(tbl, "content_hash")
+	ctypes := nColStr(tbl, "content_type")
+	embs := nColStr(tbl, "embedding")
+
+	chunksByPath, err := c.loadNodeChunks(ctx, snapID)
+	if err != nil {
+		return nil, err
+	}
+
+	at := func(s []string, i int) string {
+		if i < len(s) {
+			return s[i]
+		}
+		return ""
+	}
+	atU32 := func(s []uint32, i int) uint32 {
+		if i < len(s) {
+			return s[i]
+		}
+		return 0
+	}
+	atI64 := func(s []int64, i int) int64 {
+		if i < len(s) {
+			return s[i]
+		}
+		return 0
+	}
 
 	nodes := make([]Node, len(paths))
 	for i := range paths {
 		nodes[i] = Node{
 			Path:          paths[i],
-			Type:          NodeType(types[i]),
-			Mode:          modes[i],
-			UID:           uids[i],
-			GID:           gids[i],
-			Size:          sizes[i],
-			MTime:         time.Unix(0, mtimes[i]).UTC(),
-			SymlinkTarget: links[i],
-			ContentHash:   hashes[i],
-			Chunks:        decStrSlice(chunks[i]),
-			ContentType:   ctypes[i],
-			Embedding:     embs[i],
+			Type:          NodeType(at(types, i)),
+			Mode:          atU32(modes, i),
+			UID:           atU32(uids, i),
+			GID:           atU32(gids, i),
+			Size:          atI64(sizes, i),
+			MTime:         time.Unix(0, atI64(mtimes, i)).UTC(),
+			SymlinkTarget: at(links, i),
+			ContentHash:   at(hashes, i),
+			Chunks:        chunksByPath[paths[i]],
+			ContentType:   at(ctypes, i),
+			Embedding:     at(embs, i),
 		}
 	}
 	return nodes, nil
+}
+
+// loadNodeChunks reads the normalized node-chunks manifest into an ordered
+// chunk list per path. A missing manifest yields an empty map.
+func (c *Catalog) loadNodeChunks(ctx context.Context, snapID string) (map[string][]string, error) {
+	ok, err := c.store.Exists(ctx, nodeChunksKey(snapID))
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]string{}
+	if !ok {
+		return out, nil
+	}
+	tbl, err := c.readTable(ctx, nodeChunksKey(snapID))
+	if err != nil {
+		return nil, err
+	}
+	defer tbl.Release()
+	paths := nColStr(tbl, "path")
+	seqs := nColI64(tbl, "seq")
+	hashes := nColStr(tbl, "hash")
+	for i := range paths {
+		p := paths[i]
+		s := int(seqs[i])
+		lst := out[p]
+		if s >= len(lst) {
+			grown := make([]string, s+1)
+			copy(grown, lst)
+			lst = grown
+		}
+		lst[s] = hashes[i]
+		out[p] = lst
+	}
+	return out, nil
 }
 
 func (c *Catalog) readChunks(ctx context.Context, key string) ([]ChunkEntry, error) {
@@ -445,7 +556,10 @@ func (c *Catalog) DeleteSnapshot(ctx context.Context, id string) error {
 	if err := c.store.Delete(ctx, snapshotKey(id)); err != nil {
 		return err
 	}
-	return c.store.Delete(ctx, nodesKey(id))
+	if err := c.store.Delete(ctx, nodesKey(id)); err != nil {
+		return err
+	}
+	return c.store.Delete(ctx, nodeChunksKey(id))
 }
 
 // ReplaceChunkAndPackIndex consolidates the chunk and pack indexes: it deletes

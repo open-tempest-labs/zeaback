@@ -2,6 +2,7 @@ package catalog_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -128,6 +129,49 @@ func TestSnapshotKindActorRoundTrip(t *testing.T) {
 	}
 	if got.Annotations["intent"] != "tighten JWT checks" || got.Annotations["session_id"] != "abc123" {
 		t.Fatalf("annotations mismatch: %+v", got.Annotations)
+	}
+}
+
+// TestNodeManifestLargeVaried guards the Parquet encoding path against the
+// "dict eof exception" class of failures: many high-cardinality rows plus a few
+// rows carrying very large chunk-list cells (as a multi-GB file would). It must
+// round-trip exactly.
+func TestNodeManifestLargeVaried(t *testing.T) {
+	ctx := context.Background()
+	c := newCatalog(t)
+
+	hash := func(i int) string { return fmt.Sprintf("%064x", i) }
+	var nodes []catalog.Node
+	next := 0
+	for i := 0; i < 3000; i++ {
+		n := catalog.Node{Path: fmt.Sprintf("dir%d/file%d.dat", i%50, i), Type: catalog.NodeFile}
+		// A handful of rows get huge chunk lists (~25k hashes ≈ 1.6 MB cell).
+		count := 1
+		if i%600 == 0 {
+			count = 25000
+		}
+		for j := 0; j < count; j++ {
+			n.Chunks = append(n.Chunks, hash(next))
+			next++
+		}
+		nodes = append(nodes, n)
+	}
+	if err := c.WriteNodes(ctx, "big", nodes); err != nil {
+		t.Fatalf("write nodes: %v", err)
+	}
+	got, err := c.LoadNodes(ctx, "big")
+	if err != nil {
+		t.Fatalf("load nodes: %v", err)
+	}
+	if len(got) != len(nodes) {
+		t.Fatalf("node count = %d; want %d", len(got), len(nodes))
+	}
+	// Spot-check a huge-cell row round-tripped exactly.
+	if len(got[600].Chunks) != 25000 || got[600].Chunks[24999] == "" {
+		t.Fatalf("huge chunk-list row corrupted: len=%d", len(got[600].Chunks))
+	}
+	if got[1].Path != nodes[1].Path || got[1].Chunks[0] != nodes[1].Chunks[0] {
+		t.Fatalf("row mismatch: %+v", got[1])
 	}
 }
 

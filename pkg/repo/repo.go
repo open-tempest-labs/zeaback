@@ -20,7 +20,11 @@ import (
 )
 
 const (
-	formatVersion = 1
+	// formatVersion 2 normalized per-file chunk lists into their own manifest
+	// (v1 stored them as a single JSON cell, which arrow-go's Parquet codec
+	// could not read back for large files). v1 repositories are not readable by
+	// this build.
+	formatVersion = 2
 	metaKey       = "repo.json"
 )
 
@@ -87,6 +91,9 @@ func Open(ctx context.Context, s store.Store, localDir string) (*Repository, err
 	var m Meta
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, fmt.Errorf("repo: parse meta: %w", err)
+	}
+	if m.FormatVersion != formatVersion {
+		return nil, fmt.Errorf("repo: on-disk format v%d is not supported by this build (expected v%d); this pre-release changed the format — please create a fresh repository and re-run your backups", m.FormatVersion, formatVersion)
 	}
 	if m.Chunker.Avg == 0 {
 		m.Chunker = cas.DefaultChunkerOptions

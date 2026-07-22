@@ -7,11 +7,13 @@
 // sibling Zea tools without zeaback. A DuckDB query path (see the duckdb_arrow
 // build tag) sits over these manifests for ad-hoc time-travel and analytics.
 //
-// Nested values (tag maps, chunk lists, source-path lists) are encoded as JSON
-// strings rather than Arrow nested types: this keeps the writer simple and stays
-// fully queryable from DuckDB via its json functions. The reserved content_type
-// and embedding columns exist from day one so the Phase 2 AI/semantic-restore
-// layer is a query, not a schema migration.
+// Small nested values (tag maps, source-path lists) are encoded as JSON strings
+// rather than Arrow nested types: this keeps the writer simple and stays fully
+// queryable from DuckDB via its json functions. A file's chunk list, which can be
+// enormous, is instead normalized into a separate row-per-chunk manifest so no
+// single Parquet cell is ever large. The reserved content_type and embedding
+// columns exist from day one so the Phase 2 AI/semantic-restore layer is a query,
+// not a schema migration.
 package catalog
 
 import (
@@ -94,10 +96,11 @@ type Catalog struct {
 // New returns a catalog backed by s.
 func New(s store.Store) *Catalog { return &Catalog{store: s} }
 
-func snapshotKey(id string) string { return "meta/snapshots/" + id + ".parquet" }
-func nodesKey(id string) string    { return "nodes/" + id + ".parquet" }
-func chunksKey(id string) string   { return "meta/chunks/" + id + ".parquet" }
-func packsKey(id string) string    { return "meta/packs/" + id + ".parquet" }
+func snapshotKey(id string) string   { return "meta/snapshots/" + id + ".parquet" }
+func nodesKey(id string) string      { return "nodes/" + id + ".parquet" }
+func nodeChunksKey(id string) string { return "nodechunks/" + id + ".parquet" }
+func chunksKey(id string) string     { return "meta/chunks/" + id + ".parquet" }
+func packsKey(id string) string      { return "meta/packs/" + id + ".parquet" }
 
 const (
 	snapshotsPrefix = "meta/snapshots"
