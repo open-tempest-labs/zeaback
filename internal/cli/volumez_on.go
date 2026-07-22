@@ -1,3 +1,5 @@
+//go:build volumez
+
 package cli
 
 import (
@@ -8,7 +10,8 @@ import (
 	"github.com/open-tempest-labs/zeaback/pkg/store/volumez"
 )
 
-// newVolumezStore builds a store backed by a volumez storage backend.
+// newVolumezStore builds a store backed by a volumez storage backend. Available
+// only in builds compiled with the "volumez" build tag.
 func newVolumezStore(ref config.RepoRef) (store.Store, string, error) {
 	if ref.Backend == "" {
 		return nil, "", fmt.Errorf("volumez store requires a backend name (e.g. s3, http)")

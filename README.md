@@ -74,7 +74,7 @@ zeaback
 └── pkg
     ├── store           # immutable object-store interface
     │   ├── local       # filesystem dir (also a mounted volumez FUSE path)
-    │   └── volumez     # adapter over volumez's pkg/backend.Backend
+    │   └── volumez     # opt-in adapter over volumez's pkg/backend.Backend (-tags volumez)
     ├── cas             # content-defined chunking, hashing, compressed packs
     ├── catalog         # Arrow/Parquet manifests + DuckDB query layer
     ├── repo            # repository: wires store + catalog
@@ -89,12 +89,30 @@ See [DESIGN.md](DESIGN.md) for the full design, including the AI/MCP roadmap.
 ## Combining with volumez
 
 zeaback writes only immutable, write-once objects, so it composes cleanly with
-[volumez](https://github.com/lmccay/volumez):
+[volumez](https://github.com/open-tempest-labs/volumez). Integration is
+**optional** — the default build has no volumez dependency at all (and none of its
+FUSE/AWS transitive deps). There are two ways to target volumez:
 
-- **Local store over a FUSE mount** — mount volumez, then
-  `zeaback init --path /mnt/volumez/backups`. Zero code coupling.
-- **Library adapter** — `zeaback init --store volumez --backend s3 --config '{...}'`
-  drives a volumez backend directly in-process, no mount required.
+- **Local store over a FUSE mount (no build flags, zero coupling).** Mount
+  volumez, then `zeaback init --path /mnt/volumez/backups`. This works with the
+  standard build.
+
+- **In-process library adapter (opt-in, `-tags volumez`).** Drives a volumez
+  backend directly without a mount:
+  `zeaback init --store volumez --backend s3 --config '{...}'`.
+
+  Because volumez's published module path is currently being reconciled with its
+  hosting, enable the adapter with a local checkout via a Go workspace:
+
+  ```sh
+  git clone https://github.com/open-tempest-labs/volumez ../volumez
+  go work init && go work use . ../volumez     # go.work is gitignored
+  make build-volumez                            # go build -tags "duckdb_arrow volumez"
+  ```
+
+  Without the `volumez` tag, selecting the volumez store prints a clear
+  "rebuild with -tags volumez" message. `make tidy` (which runs `go mod tidy -e`)
+  keeps the module file clean whether or not volumez is present.
 
 ## Building
 
@@ -123,7 +141,7 @@ features build on. See [DESIGN.md](DESIGN.md).
 |---|---|
 | [zeaos](https://github.com/open-tempest-labs/zeaos) | Data OS / warehouse over DuckDB + Iceberg |
 | [zeashell](https://github.com/open-tempest-labs/zeashell) | DataFrame shell for modern file formats |
-| [volumez](https://github.com/lmccay/volumez) | FUSE mount + pluggable storage backends for cloud APIs |
+| [volumez](https://github.com/open-tempest-labs/volumez) | FUSE mount + pluggable storage backends for cloud APIs |
 | **zeaback** | Incremental backup with a queryable, time-travelable catalog |
 
 ## License

@@ -27,6 +27,22 @@ on file bytes.
   is why zeaback composes with volumez despite volumez's whole-object rewrites:
   zeaback never rewrites.
 
+### volumez integration is optional
+
+The default build has **no** volumez dependency. The `local` store already targets
+volumez by pointing at a mounted FUSE path. The in-process adapter
+(`pkg/store/volumez`) is gated behind the `volumez` build tag, and the CLI glue
+has an on/off pair (`internal/cli/volumez_on.go` / `volumez_off.go`) so a build
+without the tag reports a clear "rebuild with -tags volumez" message. This keeps
+volumez — and its FUSE/AWS transitive dependencies — out of the standard build.
+
+The adapter is opt-in (rather than a normal require) partly by design and partly
+of necessity: the volumez module currently declares the import path
+`github.com/lmccay/volumez` while being hosted at `open-tempest-labs/volumez`, so
+it is not cleanly `go get`-able yet. Until that is reconciled upstream, the opt-in
+build resolves volumez from a local checkout via a Go workspace (`go.work`), and
+`go mod tidy -e` (see `make tidy`) keeps the module file clean in its absence.
+
 ### Metadata plane (columnar, relational)
 
 Every backup writes immutable **Parquet manifests** (`pkg/catalog`, via

@@ -1,3 +1,5 @@
+//go:build volumez
+
 // Package volumez adapts a volumez storage backend to zeaback's store.Store
 // interface, letting zeaback write its repository directly to any backend
 // volumez supports (S3, HTTP, ...) without a FUSE mount.
