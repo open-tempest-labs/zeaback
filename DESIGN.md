@@ -52,7 +52,7 @@ arrow-go/v18):
 
 | Manifest | Key | Contents |
 |---|---|---|
-| snapshot record | `meta/snapshots/<id>.parquet` | one row: id, timestamp, event, tags, parent, host, sources, annotations |
+| snapshot record | `meta/snapshots/<id>.parquet` | one row: id, timestamp, kind, actor, event, tags, parent, host, sources, annotations |
 | node tree | `nodes/<id>.parquet` | one row per file/dir/symlink: path, type, mode, uid/gid, size, mtime, content hash, chunk list, content_type, embedding |
 | chunk index | `meta/chunks/<id>.parquet` | chunks introduced by this backup: hash → pack, offset, lengths |
 | pack index | `meta/packs/<id>.parquet` | packs introduced by this backup |
@@ -61,6 +61,14 @@ Manifests are **append-only per backup**; the full chunk/pack index is the union
 of the per-backup files (DuckDB globs them with `read_parquet(...)`). Nested values
 (tag maps, chunk lists, source-path lists) are stored as JSON strings — simple to
 write and still queryable via DuckDB's json functions.
+
+The snapshot record carries an **activity type** (`kind`) and an `actor` so the
+system extends past plain backups — `agent-session`, `checkpoint`, `pre-op`, … —
+with per-kind detail (intent, session id, model) in the free-form `annotations`
+map. This is the substrate for intent-based restore: a query over kind/actor/time
+against the snapshots table, joined to nodes by path. Because the snapshot reader
+resolves columns **by name and tolerates missing ones**, the schema can keep
+gaining fields without breaking manifests written by earlier versions.
 
 Parquet is the **portable source of truth**: an archive is self-describing and
 readable by DuckDB, pandas, or the sibling Zea tools with no zeaback code. The

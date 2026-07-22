@@ -32,15 +32,17 @@ var snapshotsCmd = &cobra.Command{
 		}
 
 		tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-		fmt.Fprintln(tw, "ID\tTIME\tEVENT\tSOURCES\tTAGS")
+		fmt.Fprintln(tw, "ID\tTIME\tKIND\tACTOR\tEVENT\tSOURCES\tTAGS")
 		for _, s := range snaps {
 			tags := make([]string, 0, len(s.Tags))
 			for k, v := range s.Tags {
 				tags = append(tags, k+"="+v)
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				s.ID,
 				s.Timestamp.Local().Format("2006-01-02 15:04:05"),
+				dashIfEmpty(s.Kind),
+				dashIfEmpty(s.Actor),
 				dashIfEmpty(s.EventLabel),
 				dashIfEmpty(strings.Join(s.SourcePaths, ",")),
 				dashIfEmpty(strings.Join(tags, ",")),

@@ -183,7 +183,7 @@ schema:
 
 | Table | What it holds |
 |---|---|
-| **snapshots** | one row per backup: id, timestamp, event label, tags, parent, host, source paths |
+| **snapshots** | one row per backup: id, timestamp, **kind**, **actor**, event label, tags, parent, host, source paths, annotations |
 | **nodes** | one row per file/dir/symlink: path, type, mode, uid/gid, size, mtime, symlink target, content hash, **ordered chunk list**, and reserved `content_type` / `embedding` columns |
 | **chunks** | the chunk index: hash → pack, offset, lengths |
 | **packs** | one row per pack: id, size, chunk count |
@@ -191,6 +191,25 @@ schema:
 Your files aren't tabular — but *fleets of file metadata across time* absolutely
 are, and the questions you ask of a backup are analytical queries over exactly
 this schema.
+
+### Activity types: more than "backups"
+
+Two snapshot columns make the model bigger than plain backups. **`kind`** is the
+*activity type* — `backup` (the default), but also `agent-session`, `checkpoint`,
+`pre-op` (a safety capture taken before a destructive action), or anything else —
+and **`actor`** records who or what produced it (`larry`, `agent:claude-opus`,
+`ci:nightly`). Per-activity detail that doesn't deserve its own column — an
+agent's intent, a session id, the model, a tool summary — rides in the free-form
+`annotations` map, so a new activity type never requires a schema change.
+
+This is deliberate groundwork for AI-assisted, **intent-based restore**. A capture
+taken around an agent's work is just a snapshot with `kind = agent-session`,
+`actor = agent:…`, an `event_label` naming the session, and `annotations`
+describing the intent. "Restore the state from before the last agent session that
+touched auth" then becomes a query — filter `snapshots` by kind/actor/time, join
+to `nodes` by path — rather than a new subsystem. The columns exist now so the
+data is captured now; the semantic layer that reads them can come later without a
+migration.
 
 ### Manifests are Parquet, and they're the source of truth
 

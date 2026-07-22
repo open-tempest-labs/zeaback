@@ -4,16 +4,28 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/user"
 
 	"github.com/spf13/cobra"
 
+	"github.com/open-tempest-labs/zeaback/pkg/catalog"
 	"github.com/open-tempest-labs/zeaback/pkg/snapshot"
 )
 
 var (
 	backupEvent string
 	backupTags  []string
+	backupKind  string
+	backupActor string
 )
+
+// defaultActor returns the current OS user, for labeling who produced a backup.
+func defaultActor() string {
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
+	}
+	return os.Getenv("USER")
+}
 
 var backupCmd = &cobra.Command{
 	Use:   "backup PATH [PATH...]",
@@ -32,9 +44,15 @@ var backupCmd = &cobra.Command{
 			return err
 		}
 		host, _ := os.Hostname()
+		actor := backupActor
+		if actor == "" {
+			actor = defaultActor()
+		}
 
 		snap, st, err := snapshot.Create(ctx, r, snapshot.Options{
 			SourcePaths: args,
+			Kind:        backupKind,
+			Actor:       actor,
 			EventLabel:  backupEvent,
 			Tags:        tags,
 			Host:        host,
@@ -44,6 +62,7 @@ var backupCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Created snapshot %s\n", snap.ID)
+		fmt.Printf("  kind:     %s  (actor: %s)\n", snap.Kind, dashIfEmpty(snap.Actor))
 		if st.ParentID != "" {
 			fmt.Printf("  parent:   %s\n", st.ParentID)
 		}
@@ -58,5 +77,7 @@ var backupCmd = &cobra.Command{
 func init() {
 	backupCmd.Flags().StringVar(&backupEvent, "event", "", "label this snapshot with a named event (e.g. pre-deploy)")
 	backupCmd.Flags().StringArrayVar(&backupTags, "tag", nil, "attach a key=value tag (repeatable)")
+	backupCmd.Flags().StringVar(&backupKind, "kind", catalog.KindBackup, "activity type: backup, agent-session, checkpoint, pre-op, ...")
+	backupCmd.Flags().StringVar(&backupActor, "actor", "", "who/what produced this snapshot (default: current user)")
 	rootCmd.AddCommand(backupCmd)
 }

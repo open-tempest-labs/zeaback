@@ -24,8 +24,11 @@ import (
 // Options configures a backup run.
 type Options struct {
 	SourcePaths []string
+	Kind        string // activity type; defaults to catalog.KindBackup
+	Actor       string // who/what produced the znapshot
 	EventLabel  string
 	Tags        map[string]string
+	Annotations map[string]string // per-kind structured detail (intent, session id, ...)
 	Host        string
 }
 
@@ -205,14 +208,24 @@ func Create(ctx context.Context, r *repo.Repository, opts Options) (catalog.Snap
 	}
 
 	ts := time.Now().UTC()
+	kind := opts.Kind
+	if kind == "" {
+		kind = catalog.KindBackup
+	}
+	annotations := opts.Annotations
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
 	snap := catalog.Snapshot{
 		ID:          newSnapshotID(ts),
 		Timestamp:   ts,
+		Kind:        kind,
+		Actor:       opts.Actor,
 		EventLabel:  opts.EventLabel,
 		Tags:        opts.Tags,
 		Host:        opts.Host,
 		SourcePaths: opts.SourcePaths,
-		Annotations: map[string]string{},
+		Annotations: annotations,
 	}
 	if parent != nil {
 		snap.ParentID = parent.ID

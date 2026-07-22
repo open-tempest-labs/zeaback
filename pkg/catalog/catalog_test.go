@@ -66,6 +66,10 @@ func TestSnapshotRoundTrip(t *testing.T) {
 	if got.Tags["job"] != "nightly" || len(got.SourcePaths) != 1 {
 		t.Fatalf("snapshot nested fields mismatch: %+v", got)
 	}
+	// A record written without an explicit kind reads back as the default.
+	if got.Kind != catalog.KindBackup {
+		t.Fatalf("default kind = %q; want %q", got.Kind, catalog.KindBackup)
+	}
 
 	// Nodes
 	gotNodes, err := c.LoadNodes(ctx, "snap-1")
@@ -98,6 +102,32 @@ func TestSnapshotRoundTrip(t *testing.T) {
 	li, err := c.LoadLiveIndex(ctx)
 	if err != nil || !li.Has("c1") || li.Has("nope") {
 		t.Fatalf("live index unexpected: %v", err)
+	}
+}
+
+func TestSnapshotKindActorRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	c := newCatalog(t)
+
+	ts := time.Unix(1_700_000_100, 0).UTC()
+	if err := c.WriteSnapshotRecord(ctx, catalog.Snapshot{
+		ID: "sess-1", Timestamp: ts,
+		Kind: catalog.KindAgentSession, Actor: "agent:claude-opus",
+		EventLabel:  "refactor-auth",
+		Annotations: map[string]string{"intent": "tighten JWT checks", "session_id": "abc123"},
+	}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	snaps, err := c.LoadSnapshots(ctx)
+	if err != nil || len(snaps) != 1 {
+		t.Fatalf("load = %v, %v", snaps, err)
+	}
+	got := snaps[0]
+	if got.Kind != catalog.KindAgentSession || got.Actor != "agent:claude-opus" {
+		t.Fatalf("kind/actor mismatch: %+v", got)
+	}
+	if got.Annotations["intent"] != "tighten JWT checks" || got.Annotations["session_id"] != "abc123" {
+		t.Fatalf("annotations mismatch: %+v", got.Annotations)
 	}
 }
 

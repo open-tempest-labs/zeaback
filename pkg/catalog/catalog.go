@@ -29,16 +29,29 @@ const (
 	NodeSymlink NodeType = "symlink"
 )
 
-// Snapshot is a znapshot record: a point-in-time, filesystem-independent backup.
+// Activity kinds classify what a znapshot captured. The set is open — any string
+// is valid — but these are the well-known values. Kind drives how the rest of a
+// znapshot's metadata is interpreted and is a primary filter for semantic /
+// intent-based restore (e.g. "the state before the last agent session").
+const (
+	KindBackup       = "backup"        // an ordinary file/tree backup (the default)
+	KindAgentSession = "agent-session" // state captured around an AI agent's work
+	KindCheckpoint   = "checkpoint"    // an explicit user checkpoint
+	KindPreOp        = "pre-op"        // a safety znapshot taken before a destructive action
+)
+
+// Snapshot is a znapshot record: a point-in-time, filesystem-independent capture.
 type Snapshot struct {
 	ID          string
 	Timestamp   time.Time
-	EventLabel  string            // optional named event, e.g. "pre-deploy"
+	Kind        string            // activity type; see Kind* constants (default "backup")
+	Actor       string            // who/what produced it, e.g. "larry", "agent:claude-opus"
+	EventLabel  string            // optional named event, e.g. "pre-deploy" or a session name
 	Tags        map[string]string // arbitrary user metadata
 	ParentID    string            // parent snapshot for incremental lineage
 	Host        string
-	SourcePaths []string          // roots that were backed up
-	Annotations map[string]string // reserved for AI-generated metadata
+	SourcePaths []string          // roots that were captured
+	Annotations map[string]string // per-kind structured detail (intent, session id, model, ...)
 }
 
 // Node is one entry in a snapshot's file tree.

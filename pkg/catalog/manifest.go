@@ -31,9 +31,9 @@ func u32Field(name string) arrow.Field {
 
 var (
 	snapshotSchema = arrow.NewSchema([]arrow.Field{
-		strField("id"), i64Field("timestamp"), strField("event_label"),
-		strField("tags"), strField("parent_id"), strField("host"),
-		strField("source_paths"), strField("annotations"),
+		strField("id"), i64Field("timestamp"), strField("kind"), strField("actor"),
+		strField("event_label"), strField("tags"), strField("parent_id"),
+		strField("host"), strField("source_paths"), strField("annotations"),
 	}, nil)
 
 	nodeSchema = arrow.NewSchema([]arrow.Field{
@@ -179,15 +179,21 @@ func colU32(tbl arrow.Table, col int) []uint32 {
 
 // WriteSnapshotRecord writes the one-row snapshot manifest.
 func (c *Catalog) WriteSnapshotRecord(ctx context.Context, s Snapshot) error {
+	kind := s.Kind
+	if kind == "" {
+		kind = KindBackup
+	}
 	return c.writeParquet(ctx, snapshotKey(s.ID), snapshotSchema, func(b *array.RecordBuilder) {
 		str(b, 0, s.ID)
 		i64(b, 1, s.Timestamp.UnixNano())
-		str(b, 2, s.EventLabel)
-		str(b, 3, encJSON(s.Tags))
-		str(b, 4, s.ParentID)
-		str(b, 5, s.Host)
-		str(b, 6, encJSON(s.SourcePaths))
-		str(b, 7, encJSON(s.Annotations))
+		str(b, 2, kind)
+		str(b, 3, s.Actor)
+		str(b, 4, s.EventLabel)
+		str(b, 5, encJSON(s.Tags))
+		str(b, 6, s.ParentID)
+		str(b, 7, s.Host)
+		str(b, 8, encJSON(s.SourcePaths))
+		str(b, 9, encJSON(s.Annotations))
 	})
 }
 
@@ -245,6 +251,43 @@ func (c *Catalog) WriteBackupManifests(ctx context.Context, snapID string, chunk
 	return c.WritePacks(ctx, packsKey(snapID), packs)
 }
 
+// colIndex returns the position of a column by name, or -1 if absent. Reading by
+// name (rather than position) lets the snapshot schema gain fields over time
+// without breaking manifests written by older versions.
+func colIndex(tbl arrow.Table, name string) int {
+	for i := 0; i < int(tbl.NumCols()); i++ {
+		if tbl.Schema().Field(i).Name == name {
+			return i
+		}
+	}
+	return -1
+}
+
+// firstStr returns the first value of a string column by name, or "" if the
+// column is absent or empty.
+func firstStr(tbl arrow.Table, name string) string {
+	i := colIndex(tbl, name)
+	if i < 0 {
+		return ""
+	}
+	if vals := colStr(tbl, i); len(vals) > 0 {
+		return vals[0]
+	}
+	return ""
+}
+
+// firstI64 returns the first value of an int64 column by name, or 0 if absent.
+func firstI64(tbl arrow.Table, name string) int64 {
+	i := colIndex(tbl, name)
+	if i < 0 {
+		return 0
+	}
+	if vals := colI64(tbl, i); len(vals) > 0 {
+		return vals[0]
+	}
+	return 0
+}
+
 func (c *Catalog) readSnapshot(ctx context.Context, key string) (Snapshot, error) {
 	tbl, err := c.readTable(ctx, key)
 	if err != nil {
@@ -254,15 +297,21 @@ func (c *Catalog) readSnapshot(ctx context.Context, key string) (Snapshot, error
 	if tbl.NumRows() == 0 {
 		return Snapshot{}, fmt.Errorf("catalog: empty snapshot manifest %s", key)
 	}
+	kind := firstStr(tbl, "kind")
+	if kind == "" {
+		kind = KindBackup
+	}
 	return Snapshot{
-		ID:          colStr(tbl, 0)[0],
-		Timestamp:   time.Unix(0, colI64(tbl, 1)[0]).UTC(),
-		EventLabel:  colStr(tbl, 2)[0],
-		Tags:        decStrMap(colStr(tbl, 3)[0]),
-		ParentID:    colStr(tbl, 4)[0],
-		Host:        colStr(tbl, 5)[0],
-		SourcePaths: decStrSlice(colStr(tbl, 6)[0]),
-		Annotations: decStrMap(colStr(tbl, 7)[0]),
+		ID:          firstStr(tbl, "id"),
+		Timestamp:   time.Unix(0, firstI64(tbl, "timestamp")).UTC(),
+		Kind:        kind,
+		Actor:       firstStr(tbl, "actor"),
+		EventLabel:  firstStr(tbl, "event_label"),
+		Tags:        decStrMap(firstStr(tbl, "tags")),
+		ParentID:    firstStr(tbl, "parent_id"),
+		Host:        firstStr(tbl, "host"),
+		SourcePaths: decStrSlice(firstStr(tbl, "source_paths")),
+		Annotations: decStrMap(firstStr(tbl, "annotations")),
 	}, nil
 }
 
