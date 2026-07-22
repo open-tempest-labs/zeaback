@@ -1,0 +1,20 @@
+# Built binary
+/zeaback
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+
+# Local scratch / repos created during manual testing
+/tmp/
+*.zeaback-repo/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Env
+.env
