@@ -57,7 +57,7 @@ var lsCmd = &cobra.Command{
 			return err
 		}
 
-		prefix := strings.TrimSuffix(pathPrefix, "/")
+		prefix := strings.TrimSuffix(catalog.StoredPath(snap, pathPrefix), "/")
 		sort.Slice(nodes, func(i, j int) bool { return nodes[i].Path < nodes[j].Path })
 
 		fmt.Printf("snapshot %s  (%s)\n", snap.ID, snap.Timestamp.Local().Format("2006-01-02 15:04:05"))
@@ -84,6 +84,9 @@ var lsCmd = &cobra.Command{
 		}
 		if shown == 0 {
 			fmt.Printf("(no entries under %q)\n", pathPrefix)
+			if roots := catalog.StoredRoots(snap); len(roots) > 0 {
+				fmt.Printf("paths in this snapshot are relative to: %s\n", strings.Join(roots, ", "))
+			}
 		}
 		return nil
 	},

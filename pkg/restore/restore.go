@@ -63,7 +63,7 @@ func Run(ctx context.Context, r *repo.Repository, opts Options) (Stats, error) {
 		return stats, err
 	}
 
-	prefix := strings.TrimSuffix(filepath.ToSlash(opts.PathPrefix), "/")
+	prefix := strings.TrimSuffix(catalog.StoredPath(snap, opts.PathPrefix), "/")
 	var selected []catalog.Node
 	for _, n := range nodes {
 		if matchesPrefix(n.Path, prefix) {
@@ -71,7 +71,11 @@ func Run(ctx context.Context, r *repo.Repository, opts Options) (Stats, error) {
 		}
 	}
 	if len(selected) == 0 {
-		return stats, fmt.Errorf("restore: no entries match %q in snapshot %s", opts.PathPrefix, snap.ID)
+		hint := ""
+		if roots := catalog.StoredRoots(snap); len(roots) > 0 {
+			hint = fmt.Sprintf(" (paths are relative to: %s)", strings.Join(roots, ", "))
+		}
+		return stats, fmt.Errorf("restore: no entries match %q in snapshot %s%s", opts.PathPrefix, snap.ID, hint)
 	}
 	// Shallowest paths first so parent directories exist before their contents.
 	sort.SliceStable(selected, func(i, j int) bool { return selected[i].Path < selected[j].Path })

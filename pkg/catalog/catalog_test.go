@@ -175,6 +175,26 @@ func TestNodeManifestLargeVaried(t *testing.T) {
 	}
 }
 
+func TestStoredPath(t *testing.T) {
+	snap := catalog.Snapshot{SourcePaths: []string{"/Users/lmccay/Documents"}}
+	cases := map[string]string{
+		"/Users/lmccay/Documents":           "Documents",          // source root
+		"/Users/lmccay/Documents/Personal":  "Documents/Personal", // under root
+		"/Users/lmccay/Documents/Personal/": "Documents/Personal", // trailing slash
+		"Documents/Personal":                "Documents/Personal", // already stored form
+		"/etc/hosts":                        "etc/hosts",          // outside any source
+		"":                                  "",
+	}
+	for in, want := range cases {
+		if got := catalog.StoredPath(snap, in); got != want {
+			t.Errorf("StoredPath(%q) = %q; want %q", in, got, want)
+		}
+	}
+	if roots := catalog.StoredRoots(snap); len(roots) != 1 || roots[0] != "Documents" {
+		t.Errorf("StoredRoots = %v; want [Documents]", roots)
+	}
+}
+
 func TestResolve(t *testing.T) {
 	t0 := time.Unix(1000, 0).UTC()
 	snaps := []catalog.Snapshot{
