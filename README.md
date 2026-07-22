@@ -50,7 +50,7 @@ make build                      # builds ./zeaback with DuckDB (tags duckdb_arro
 
 | Command | Purpose |
 |---|---|
-| `init` | Create a repository (local dir or volumez backend) and register it |
+| `init` | Create a repository at a local path (or a mounted gateway) and register it |
 | `backup PATH...` | Create an incremental zeasnap; `--event`, `--tag k=v` |
 | `snapshots` | List zeasnaps |
 | `ls [SNAP] [PATH]` | Browse a snapshot's tree; `--at`, `--event` |
@@ -73,8 +73,7 @@ zeaback
 ├── internal/config     # ~/.zeaback/config.json (named repos)
 └── pkg
     ├── store           # immutable object-store interface
-    │   ├── local       # filesystem dir (also a mounted volumez FUSE path)
-    │   └── volumez     # opt-in adapter over volumez's pkg/backend.Backend (-tags volumez)
+    │   └── local       # filesystem dir (also a mounted cloud/FUSE gateway)
     ├── cas             # content-defined chunking, hashing, compressed packs
     ├── catalog         # Arrow/Parquet manifests + DuckDB query layer
     ├── repo            # repository: wires store + catalog
@@ -86,33 +85,26 @@ zeaback
 
 See [DESIGN.md](DESIGN.md) for the full design, including the AI/MCP roadmap.
 
-## Combining with volumez
+## Cloud and external storage (volumez, rclone, s3fs, NFS, ...)
 
-zeaback writes only immutable, write-once objects, so it composes cleanly with
-[volumez](https://github.com/open-tempest-labs/volumez). Integration is
-**optional** — the default build has no volumez dependency at all (and none of its
-FUSE/AWS transitive deps). There are two ways to target volumez:
+zeaback writes only immutable, write-once objects with ordinary filesystem APIs,
+so targeting cloud or external storage needs **no special build and no coupling**
+to any particular gateway: point the repository at a mounted path.
 
-- **Local store over a FUSE mount (no build flags, zero coupling).** Mount
-  volumez, then `zeaback init --path /mnt/volumez/backups`. This works with the
-  standard build.
+```sh
+# mount your gateway of choice, then:
+zeaback init --path /mnt/volumez/backups
+zeaback backup ~/projects
+```
 
-- **In-process library adapter (opt-in, `-tags volumez`).** Drives a volumez
-  backend directly without a mount:
-  `zeaback init --store volumez --backend s3 --config '{...}'`.
+This works with [volumez](https://github.com/open-tempest-labs/volumez) (a FUSE
+mount for cloud backends), rclone mount, s3fs, goofys, NFS, SMB — anything that
+presents as a directory. Because zeaback creates each object exactly once and
+never rewrites it, it composes cleanly even with gateways that treat objects as
+immutable.
 
-  Because volumez's published module path is currently being reconciled with its
-  hosting, enable the adapter with a local checkout via a Go workspace:
-
-  ```sh
-  git clone https://github.com/open-tempest-labs/volumez ../volumez
-  go work init && go work use . ../volumez     # go.work is gitignored
-  make build-volumez                            # go build -tags "duckdb_arrow volumez"
-  ```
-
-  Without the `volumez` tag, selecting the volumez store prints a clear
-  "rebuild with -tags volumez" message. `make tidy` (which runs `go mod tidy -e`)
-  keeps the module file clean whether or not volumez is present.
+A native, mountless cloud store (e.g. S3 via aws-sdk-go) may be added in the
+future behind the same `store.Store` interface; it is not required today.
 
 ## Building
 

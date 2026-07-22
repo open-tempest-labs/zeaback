@@ -19,6 +19,6 @@ coverage.txt
 # Env
 .env
 
-# Go workspace (used locally to enable the opt-in volumez integration)
+# Go workspace files (local only)
 go.work
 go.work.sum

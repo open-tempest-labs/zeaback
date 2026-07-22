@@ -24,16 +24,18 @@ func init() {
 }
 
 // storeFromRef builds a store from a repository reference, returning the store
-// and, for local stores, its filesystem directory (empty otherwise).
+// and its filesystem directory.
+//
+// zeaback targets cloud/external storage by writing to a local directory that is
+// a mounted gateway (volumez, rclone, s3fs, NFS, ...); there is no gateway-
+// specific coupling. A native cloud store may be added in the future.
 func storeFromRef(ref config.RepoRef) (store.Store, string, error) {
 	switch ref.Store {
 	case "", "local":
 		s, err := local.New(ref.Location)
 		return s, ref.Location, err
-	case "volumez":
-		return newVolumezStore(ref)
 	default:
-		return nil, "", fmt.Errorf("unknown store type %q", ref.Store)
+		return nil, "", fmt.Errorf("unsupported store type %q; use a local path (a mounted cloud/FUSE gateway such as volumez works as a local path)", ref.Store)
 	}
 }
 

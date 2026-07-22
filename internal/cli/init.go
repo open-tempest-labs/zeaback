@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 
@@ -13,31 +12,24 @@ import (
 )
 
 var (
-	initName       string
-	initStore      string
-	initBackend    string
-	initBackendCfg string
-	initDefault    bool
+	initName    string
+	initDefault bool
 )
 
 var initCmd = &cobra.Command{
-	Use:   "init [--path DIR | --store volumez --backend s3 --config JSON]",
+	Use:   "init --path DIR",
 	Short: "Create a new repository and register it in the config",
+	Long: `Create a new repository at a local path and register it in the config.
+
+To target cloud or external storage, point --path at a mounted gateway (volumez,
+rclone, s3fs, NFS, ...); zeaback writes to it with ordinary filesystem APIs.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
-		ref := config.RepoRef{Store: initStore, Location: flagPath, Backend: initBackend}
-		if ref.Store == "" {
-			ref.Store = "local"
+		if flagPath == "" {
+			return fmt.Errorf("init needs --path DIR")
 		}
-		if initBackendCfg != "" {
-			if err := json.Unmarshal([]byte(initBackendCfg), &ref.Config); err != nil {
-				return fmt.Errorf("--config: %w", err)
-			}
-		}
-		if ref.Store == "local" && ref.Location == "" {
-			return fmt.Errorf("a local repository needs --path DIR")
-		}
+		ref := config.RepoRef{Store: "local", Location: flagPath}
 
 		s, dir, err := storeFromRef(ref)
 		if err != nil {
@@ -50,11 +42,7 @@ var initCmd = &cobra.Command{
 
 		name := initName
 		if name == "" {
-			if ref.Location != "" {
-				name = filepath.Base(ref.Location)
-			} else {
-				name = ref.Backend
-			}
+			name = filepath.Base(ref.Location)
 		}
 		cfg, err := config.Load()
 		if err != nil {
@@ -77,10 +65,7 @@ var initCmd = &cobra.Command{
 }
 
 func init() {
-	initCmd.Flags().StringVar(&initName, "name", "", "config name for the repository (default: basename of path or backend)")
-	initCmd.Flags().StringVar(&initStore, "store", "local", "store type: local or volumez")
-	initCmd.Flags().StringVar(&initBackend, "backend", "", "volumez backend name (e.g. s3, http)")
-	initCmd.Flags().StringVar(&initBackendCfg, "config", "", "volumez backend config as JSON")
+	initCmd.Flags().StringVar(&initName, "name", "", "config name for the repository (default: basename of path)")
 	initCmd.Flags().BoolVar(&initDefault, "default", false, "set as the default repository")
 	rootCmd.AddCommand(initCmd)
 }

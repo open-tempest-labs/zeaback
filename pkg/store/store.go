@@ -4,8 +4,8 @@
 // zeaback only ever writes content-addressed, write-once objects (pack files and
 // Parquet manifests). Because objects are never modified in place, any backend
 // that can put/get/list/delete blobs is sufficient — including a plain local
-// directory (which may itself be a mounted volumez FUSE path) or an adapter over
-// a volumez storage backend.
+// directory, which may itself be a mounted cloud/FUSE gateway (volumez, rclone,
+// s3fs, NFS, ...). A native cloud store may be added in the future.
 package store
 
 import (

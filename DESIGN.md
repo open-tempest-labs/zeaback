@@ -27,21 +27,23 @@ on file bytes.
   is why zeaback composes with volumez despite volumez's whole-object rewrites:
   zeaback never rewrites.
 
-### volumez integration is optional
+### No coupling to any storage gateway
 
-The default build has **no** volumez dependency. The `local` store already targets
-volumez by pointing at a mounted FUSE path. The in-process adapter
-(`pkg/store/volumez`) is gated behind the `volumez` build tag, and the CLI glue
-has an on/off pair (`internal/cli/volumez_on.go` / `volumez_off.go`) so a build
-without the tag reports a clear "rebuild with -tags volumez" message. This keeps
-volumez — and its FUSE/AWS transitive dependencies — out of the standard build.
+zeaback deliberately has **no code-level dependency on volumez** (or any other
+gateway). Cloud and external storage are reached by pointing the `local` store at
+a mounted path — volumez, rclone, s3fs, goofys, NFS, SMB, anything that presents
+as a directory. Targeting "a directory" is strictly more general than linking one
+gateway's API, and FUSE already abstracts the backend, so an in-process adapter
+would mostly re-implement that boundary while coupling zeaback to an external Go
+API.
 
-The adapter is opt-in (rather than a normal require) partly by design and partly
-of necessity: the volumez module currently declares the import path
-`github.com/lmccay/volumez` while being hosted at `open-tempest-labs/volumez`, so
-it is not cleanly `go get`-able yet. Until that is reconciled upstream, the opt-in
-build resolves volumez from a local checkout via a Go workspace (`go.work`), and
-`go mod tidy -e` (see `make tidy`) keeps the module file clean in its absence.
+The original design carried an opt-in adapter over volumez's `pkg/backend`; it
+was removed because it added a messy optional dependency (volumez's module path
+is being reconciled with its hosting, so it is not cleanly `go get`-able) for
+marginal benefit over the mount path. If mountless, direct-to-cloud writes are
+wanted later, the right answer is a **native store** (e.g. S3 via aws-sdk-go)
+implemented directly behind `store.Store` — first-class and testable — rather
+than borrowing another project's backend registry.
 
 ### Metadata plane (columnar, relational)
 
@@ -138,6 +140,7 @@ what turns chunks dead in the first place.
 - Snapshot node manifests and consolidated indexes are written as a single Parquet
   file each (loaded fully in memory). Fine for large-but-not-enormous trees; row-
   group streaming is a later optimization.
-- `query` requires a local repository (DuckDB reads the repo directory); querying a
-  volumez-backed repo means syncing it locally first.
+- `query` reads the repository directory directly with DuckDB, so it works against
+  any local path (including a mounted gateway). A future non-filesystem store would
+  need a local sync before querying.
 - uid/gid capture is unix-only; restoring ownership requires privilege.
