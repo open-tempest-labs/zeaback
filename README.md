@@ -21,29 +21,45 @@ Your files aren't tabular — but the *questions you ask of a backup* are:
 "what changed since Tuesday?", "restore `/etc` as of the event before the deploy",
 "which packs are mostly dead?". Those are queries, and that is what the catalog is for.
 
+## Install
+
+**Homebrew (macOS/Linux):**
+
+```sh
+brew tap open-tempest-labs/zeaback
+brew install zeaback
+```
+
+**From source** (requires Go 1.26+ and CGO):
+
+```sh
+git clone https://github.com/open-tempest-labs/zeaback
+cd zeaback && make build        # -> ./zeaback
+```
+
+Both build with the `duckdb_arrow` tag, embedding DuckDB for the `query` command.
+
 ## Quick start
 
 ```sh
-make build                      # builds ./zeaback with DuckDB (tags duckdb_arrow)
-
-./zeaback init --path ~/backups/main        # create a local repository
-./zeaback backup --event nightly ~/projects # create a znapshot
-./zeaback snapshots                         # list znapshots
-./zeaback ls latest ~/projects              # browse a snapshot tree
+zeaback init --path ~/backups/main           # create a local repository
+zeaback backup --event nightly ~/projects    # create a znapshot
+zeaback snapshots                            # list znapshots
+zeaback ls latest ~/projects                 # browse a snapshot tree
 
 # restore a whole tree, a subtree, or a single file
-./zeaback restore ./out
-./zeaback restore --path projects/src ./out
-./zeaback restore --path projects/app.conf ./out
+zeaback restore ./out
+zeaback restore --path projects/src ./out
+zeaback restore --path projects/app.conf ./out
 
 # time-travel: a point in time, or relative to a named event
-./zeaback restore --at "2026-07-01 09:00:00" ./out
-./zeaback restore --event nightly --before "2026-07-01" ./out
+zeaback restore --at "2026-07-01 09:00:00" ./out
+zeaback restore --event nightly --before "2026-07-01" ./out
 
-./zeaback forget <snapshot>     # make a snapshot unreachable
-./zeaback compact               # reclaim space from forgotten snapshots
-./zeaback verify --deep         # check integrity (hash-checks every blob)
-./zeaback query "SELECT event_label, count(*) FROM snapshots GROUP BY 1"
+zeaback forget <snapshot>     # make a snapshot unreachable
+zeaback compact               # reclaim space from forgotten snapshots
+zeaback verify --deep         # check integrity (hash-checks every blob)
+zeaback query "SELECT event_label, count(*) FROM snapshots GROUP BY 1"
 ```
 
 ## Commands
